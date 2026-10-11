@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scenario Roulette</title>
+<style>
+  :root{
+    --bg:#0a0e1a; --bg2:#121834; --panel:#161d3a; --panel-line:#2a3466;
+    --text:#f4f6ff; --dim:#98a2c9;
+    --a:#ffb020; --b:#19d3c5; --c:#ef5da8; --d:#a6e22e;
+    --good:#2ecc71; --bad:#ff5a5a;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  html{ background:var(--bg); }
+  body{
+    min-height:100vh;
+    background:radial-gradient(circle at 50% -10%, rgba(255,255,255,0.08), transparent 60%), linear-gradient(180deg, var(--bg2), var(--bg));
+    background-attachment:fixed;
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; align-items:flex-start; justify-content:center; padding:24px;
+  }
+  #app{ width:100%; max-width:860px; }
+  body[data-screen="session"] #app{ max-width:1320px; }
+  h1,h2,h3{ margin:0 0 8px; font-weight:800; letter-spacing:-0.01em; }
+  p{ margin:0 0 16px; color:var(--dim); line-height:1.5; }
+  .card{ background:var(--panel); border:1px solid var(--panel-line); border-radius:20px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,0.35); margin-bottom:16px; }
+  .center{ text-align:center; }
+  .narrow{ max-width:860px; margin-left:auto; margin-right:auto; }
+  .muted{ color:var(--dim); font-size:14px; }
+  .small{ font-size:12px; }
+  .kicker{ text-transform:uppercase; letter-spacing:2px; font-size:12px; color:var(--dim); font-weight:700; margin-bottom:8px; }
+  .btn{ display:block; text-align:center; background:linear-gradient(180deg,#2b3568,#1c2450); border:1px solid var(--panel-line); color:var(--text); font-size:16px; font-weight:700; padding:14px 20px; border-radius:14px; cursor:pointer; width:100%; margin-bottom:12px; transition:transform .12s ease, filter .12s ease; font-family:inherit; }
+  .btn:hover{ filter:brightness(1.15); }
+  .btn:active{ transform:translateY(1px); }
+  .btn-primary{ background:linear-gradient(180deg,#ffb020,#e8940a); color:#231400; border:none; }
+  .btn-ghost{ background:transparent; }
+  .btn-big{ font-size:20px; padding:18px 20px; }
+  .btn[disabled]{ opacity:.45; cursor:not-allowed; filter:none; }
+  input[type=text], input[type=number], textarea{ width:100%; padding:14px 16px; border-radius:12px; border:1px solid var(--panel-line); background:#0e1330; color:var(--text); font-size:16px; margin-bottom:14px; font-family:inherit; line-height:1.45; }
+  textarea{ resize:vertical; }
+  label.field{ font-size:11px; color:var(--dim); font-weight:700; letter-spacing:1px; display:block; margin:14px 0 6px; }
+  .checkrow{ display:flex; align-items:center; gap:12px; margin:14px 0; color:var(--text); font-size:15px; cursor:pointer; text-align:left; }
+  .checkrow input{ width:20px; height:20px; margin:0; accent-color:var(--a); flex:none; }
+  .iconbtn{ background:var(--panel); border:1px solid var(--panel-line); color:var(--text); font-size:12px; font-weight:700; padding:7px 10px; border-radius:8px; cursor:pointer; }
+  .iconbtn.danger{ color:var(--bad); }
+  .iconbtn[disabled]{ opacity:.35; cursor:default; }
+  .list-row{ display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--panel-line); text-align:left; }
+  .rank{ color:var(--dim); min-width:34px; display:inline-block; }
+  .chip{ display:inline-block; padding:5px 10px; border-radius:20px; font-size:12px; font-weight:700; margin:3px; }
+  .chip.waiting{ background:#0e1330; border:1px solid var(--panel-line); color:var(--dim); }
+  .resting{ margin-top:18px; text-align:center; }
+  .notice{ background:#2a2410; border:1px solid var(--a); color:var(--text); border-radius:12px; padding:10px 14px; font-size:13px; margin:0 0 14px; text-align:left; }
+  .warn{ background:#2a1810; border:1px solid var(--bad); color:var(--text); border-radius:14px; padding:12px 16px; font-size:13px; margin-bottom:16px; line-height:1.5; overflow-wrap:anywhere; }
+
+  /* ---- session stage: question on the left, wheel on the right (wide screen); stacked on a phone ---- */
+  .stagehead{ text-align:center; text-transform:uppercase; letter-spacing:2px; font-size:12px; color:var(--dim); font-weight:700; margin:0 0 14px; }
+  .stage{ display:flex; flex-direction:column; gap:16px; margin-bottom:16px; }
+  .stage .card{ margin-bottom:0; min-width:0; }
+  .stage.picked .stage-wheel{ order:-1; }   /* phone: once someone is picked, their name comes first, then the scenario and notes */
+  .wheelwrap{ display:flex; justify-content:center; margin:8px 0 18px; }
+  .wheel-after{ display:none; }
+  #wheel{ width:100%; max-width:460px; aspect-ratio:1 / 1; height:auto; display:block; }
+  @media (min-width:900px){
+    .stage{ display:grid; grid-template-columns:minmax(0,1fr) clamp(300px,26vw,340px); gap:20px; align-items:start; }   /* the scenario and picture get the room; the wheel column is only 300-340 px */
+    .stage-q{ grid-column:1; grid-row:1; }
+    .stage-wheel{ grid-column:2; grid-row:1; position:sticky; top:16px; padding:20px; }
+    .wheel-after{ display:flex; }
+    .scenario-text{ font-size:22px; }
+  }
+
+  .scenario{ background:#0e1330; border:1px solid var(--panel-line); border-radius:16px; padding:18px 20px; margin:0 0 16px; text-align:left; animation:fadeIn .4s ease; }
+  .scenario-text{ font-size:21px; line-height:1.5; font-weight:600; white-space:pre-wrap; }
+  .notes{ margin:0 0 16px; text-align:left; }
+  .notes-head{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:8px; }
+  .notes-head > .muted{ white-space:nowrap; }
+  .notes-title{ font-weight:700; font-size:15px; }
+  .notes-name{ color:var(--a); font-weight:900; font-size:17px; }
+  .notebox{ min-height:190px; margin-bottom:0; background:#0e1330; border:2px solid var(--panel-line); border-radius:14px; font-size:17px; line-height:1.5; }
+  .notebox:focus{ outline:none; border-color:var(--a); }
+  .notes.disabled .notebox{ opacity:.45; cursor:not-allowed; }
+  /* the model answer for the question on screen, shown when the facilitator presses "Reveal model answer" */
+  .btn-reveal{ border-color:var(--good); }
+  .modelbox{ margin:0 0 14px; background:#10261f; border:1px solid var(--good); border-radius:14px; padding:14px 16px; text-align:left; animation:fadeIn .4s ease; }
+  .modelbox .rep-label{ margin:0 0 6px; color:#9fe6bd; }
+  .model-text{ white-space:pre-wrap; line-height:1.55; font-size:18px; }
+  .endbtn{ font-size:14px; padding:10px 16px; }
+  @keyframes fadeIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+
+  .award-stage{ position:relative; padding:16px 0 6px; overflow:hidden; min-height:120px; }
+  .confetti-layer{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .confetti{ position:absolute; top:-16px; width:8px; height:14px; opacity:.9; animation-name:confettiFall; animation-timing-function:ease-in; animation-iteration-count:2; }
+  @keyframes confettiFall{ 0%{ transform:translateY(0) rotate(0deg); opacity:1; } 100%{ transform:translateY(200px) rotate(360deg); opacity:0; } }
+  .award-caption{ font-size:12px; color:var(--dim); font-weight:700; letter-spacing:1px; text-transform:uppercase; margin-bottom:2px; }
+  .winner-name{ font-size:44px; font-weight:900; margin:2px 0 6px; background:linear-gradient(90deg,var(--a),var(--c)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  /* ---- admin ---- */
+  .qedit{ background:#0e1330; border:1px solid var(--panel-line); border-radius:16px; padding:16px; margin-bottom:14px; }
+  .qedit input, .qedit textarea{ background:var(--panel); }
+  .qedit-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; }
+  .qedit-actions{ display:flex; gap:6px; }
+  .savebar{ position:sticky; bottom:0; display:flex; gap:10px; align-items:center; padding:12px; background:var(--panel); border:1px solid var(--panel-line); border-radius:16px; margin-top:16px; box-shadow:0 -10px 30px rgba(0,0,0,.35); }
+  .savebar .btn{ margin:0; width:auto; flex:1; }
+  .savebar .muted{ flex:2; margin:0; }
+  .qa-item{ padding:12px 0; border-bottom:1px solid var(--panel-line); text-align:left; page-break-inside:avoid; }
+  .qa-q{ font-weight:700; margin-bottom:6px; white-space:pre-wrap; }
+  .qa-a{ white-space:pre-wrap; color:var(--dim); font-size:14px; line-height:1.55; }
+
+  /* ---- answers report (what gets exported) ---- */
+  .rep-item{ padding:16px 0; border-bottom:1px solid var(--panel-line); text-align:left; page-break-inside:avoid; }
+  .rep-head{ display:flex; align-items:baseline; gap:10px; margin-bottom:8px; }
+  .rep-head b{ flex:1; font-size:17px; }
+  .rep-who{ font-weight:900; color:var(--a); font-size:17px; }
+  .rep-q{ color:var(--dim); font-size:14px; line-height:1.55; white-space:pre-wrap; margin-bottom:10px; }
+  .rep-label{ font-size:11px; letter-spacing:1px; text-transform:uppercase; font-weight:700; color:var(--dim); margin:10px 0 4px; }
+  .rep-note{ background:#0e1330; border:1px solid var(--panel-line); border-radius:12px; padding:12px 14px; min-height:64px; white-space:pre-wrap; line-height:1.55; }
+  .rep-model{ background:#10261f; border:1px solid var(--good); border-radius:12px; padding:12px 14px; white-space:pre-wrap; line-height:1.55; font-size:14px; animation:fadeIn .5s ease; }
+  .rep-locked{ border:1px dashed var(--panel-line); border-radius:12px; padding:10px 14px; margin-top:10px; color:var(--dim); font-size:13px; }
+  .revealbar{ display:flex; align-items:center; justify-content:space-between; gap:14px 18px; flex-wrap:wrap; background:#0e1330; border:1px solid var(--panel-line); border-radius:16px; padding:14px 16px; margin:6px 0 10px; text-align:left; }
+  .revealbar.done{ border-color:var(--good); background:#10261f; }
+  .revealbar b{ font-size:16px; }
+  .revealbar .muted{ margin-top:2px; font-size:13px; }
+  .revealbar .btn{ width:auto; margin:0; padding:12px 22px; }
+
+  /* ---- scenario pictures ---- */
+  .qimg{ display:block; border-radius:12px; border:1px solid var(--panel-line); background:#0a0e1a; cursor:zoom-in; }
+  .qimg-session{ width:100%; height:auto; max-height:min(48vh,500px); object-fit:contain; }
+  .qimg-report{ max-width:100%; max-height:200px; width:auto; height:auto; margin:0 0 10px; }
+  .qimg-qa{ max-width:100%; max-height:150px; width:auto; height:auto; margin:8px 0 6px; }
+  .qimg-admin{ max-width:100%; max-height:220px; width:auto; height:auto; margin:0 0 10px; }
+  .qimg-ph{ display:flex; align-items:center; justify-content:center; text-align:center; min-height:110px; border:1px dashed var(--panel-line); border-radius:12px; color:var(--dim); font-size:14px; padding:12px; }
+  .qimg-ph.failed{ cursor:pointer; color:var(--text); border-color:var(--bad); }
+  .scenario-pic{ margin-top:14px; }
+  .picbtns{ display:flex; gap:10px; flex-wrap:wrap; }
+  .picbtns .btn{ width:auto; margin:0; padding:10px 16px; font-size:14px; }
+  .picmsg{ font-size:13px; color:var(--dim); margin:8px 0 0; min-height:1.2em; }
+  #lightbox{ position:fixed; inset:0; z-index:50; background:rgba(5,8,18,.93); display:flex; align-items:center; justify-content:center; padding:12px; cursor:zoom-out; }
+  #lightbox img{ max-width:96vw; max-height:94vh; width:auto; height:auto; object-fit:contain; border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+
+  body[data-screen="admin"] #homeBtn{ display:none; }
+  .print-header{ display:none; }
+  @media print{
+    #homeBtn, #muteBtn, .btn, .savebar, .checkrow, .warn, .stagehead, .noprint, #lightbox{ display:none !important; }
+    .qimg{ cursor:auto; background:#ffffff !important; border:1px solid #999 !important; }
+    .qimg-report{ max-height:60mm; }
+    .qimg-qa{ max-height:45mm; }
+    .qimg-ph{ color:#555 !important; border-color:#999 !important; }
+    html{ background:#ffffff !important; }
+    body{ background:#ffffff !important; color:#111 !important; display:block !important; padding:0 !important; }
+    #app{ max-width:none !important; }
+    .card{ background:#ffffff !important; border:none !important; box-shadow:none !important; color:#111 !important; padding:0 !important; }
+    .kicker, .muted, p, .rank{ color:#555 !important; }
+    .list-row, .qa-item, .rep-item{ border-bottom:1px solid #ccc !important; }
+    .qa-a{ color:#333 !important; }
+    .print-header{ display:block !important; margin-bottom:12px; }
+    .print-header h1, h2{ color:#111 !important; }
+    .rep-head b, .rep-who, .rep-note, .rep-model{ color:#111 !important; }
+    .rep-q, .rep-label{ color:#555 !important; }
+    .rep-note, .rep-model{ background:#ffffff !important; border:1px solid #999 !important; }
+  }
+  @media (max-width:700px){
+    body{ padding:12px; }
+    #app{ padding-top:44px; }
+    .card{ padding:18px; }
+    .scenario-text{ font-size:18px; }
+    .qimg-session{ max-height:240px; }
+    .notes.disabled .notebox{ min-height:112px; }   /* locked box before the pick: keep the wheel close on a phone */
+    .winner-name{ font-size:34px; }
+  }
+</style>
+</head>
+<body>
+<button id="homeBtn" onclick="goHome()" title="Home" style="position:fixed;top:16px;left:16px;z-index:10;background:var(--panel);border:1px solid var(--panel-line);color:var(--text);width:44px;height:44px;border-radius:50%;font-size:18px;cursor:pointer;">&#127968;</button>
+<button id="muteBtn" onclick="toggleMute()" title="Sound on/off" style="position:fixed;top:16px;right:16px;z-index:10;background:var(--panel);border:1px solid var(--panel-line);color:var(--text);width:44px;height:44px;border-radius:50%;font-size:18px;cursor:pointer;">&#128266;</button>
+<div id="app"></div>
+<script>
+/* =========================================================
+   SETTINGS
+   Same Supabase project and quiz_data table as the quiz page,
+   so there is nothing new to set up. Keys are prefixed "roulette:".
+   The page talks to Supabase with plain fetch() and a hard time
+   limit, so it can never sit on "Loading..." if the database is
+   unreachable - it falls back to saving on this device.
+   ========================================================= */
+var SUPABASE_URL = "https://klnjdjtoqwethiytwumo.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_A649Imlb7HotCpvF0ptzAw_4G7A8AAD";
+var DEPLOYED_URL = "https://jkong4488.github.io/Salesroulette/";
+var CFG_KEY = "roulette:config";
+var SESSION_KEY = "roulette:session";
+var CFG_VERSION = 2;               /* version 2: the standard rest is 4 questions (it was 3) */
+var DEFAULT_COOLDOWN = 4;          /* after being picked, a person sits out this many questions */
+var SPIN_MS = 5200;
+var STORAGE_TIMEOUT_MS = 4500;
+var IMAGE_TIMEOUT_MS = 15000;      /* a picture is much bigger than the other rows, so it gets longer */
+var MAX_IMG_CHARS = 420000;        /* a shrunk picture is kept under this many characters (about 300 KB) */
+var LOCAL_IMG_BUDGET = 3000000;    /* most of this device's storage the picture copies may use (characters) */
+var PALETTE =["#ffb020","#19d3c5","#ef5da8","#a6e22e","#8e7dff","#ff7a45"];
+
+/* =========================================================
+   STARTER SCENARIOS (open questions + model answers).
+   Once you save from the Admin screen, your saved version
+   takes over from this list.
+   ========================================================= */
+var STARTER_QUESTIONS = [
+  { title:"Glazed open-plan office",
+    q:"An open-plan office has a full-height glass wall along one side. The lights stay at full output all day, even on bright days. The customer wants a lower energy bill. What do you propose, and why?",
+    a:[
+      "• Put the window-side luminaires in their own zone with daylight-linked dimming, so they dim as natural light increases.",
+      "• Daylight falls off quickly with distance from the glass, so the rows furthest from the window still need full output.",
+      "• Add presence detection so empty zones dim or switch off. That saves energy on top of the daylight saving.",
+      "• With DALI the zones are set in software, so they’re easy to change later if the layout moves."
+    ].join("\n") },
+  { title:"School classrooms",
+    q:"A school wants teachers to decide when the classroom lights come on, as many rooms are bright enough already. If a room is left empty, though, the lights should switch off by themselves. Which detector mode do you suggest, and how does it work?",
+    a:[
+      "• Absence detection (manual on, automatic off).",
+      "• The lights are switched on by hand with a push-button, so a bright room can stay off.",
+      "• The detector only switches the lights off once it no longer sees anyone in the room.",
+      "• Presence detection would switch the lights on every time someone walks in, which is exactly what the school doesn’t want."
+    ].join("\n") },
+  { title:"Toilet block",
+    q:"In a toilet block, the lights keep switching off while someone is still sitting in a cubicle. The customer is annoyed and says the sensors are faulty. How do you handle it?",
+    a:[
+      "• Don’t assume it’s faulty. It’s usually a coverage or settings issue.",
+      "• A PIR needs line of sight, so cubicle partitions create blind spots. Check every cubicle is covered and add detectors where needed.",
+      "• Increase the hold time (time delay) so the lights stay on when someone is sitting still.",
+      "• If PIR can’t cover the layout, look at a detector technology that copes better with partitions and small movements."
+    ].join("\n") },
+  { title:"Warehouse high-bay",
+    q:"A warehouse has high-bay luminaires about 10 m above long racking aisles. The customer wants the lights on only while someone is in the aisle. What should you consider when choosing the detector?",
+    a:[
+      "• Detection range and pattern depend on mounting height, so a standard small-office detector won’t work at 10 m.",
+      "• Choose a high-bay detector with a lens designed for that mounting height and a long, narrow aisle coverage pattern.",
+      "• Check the coverage along the full length of each aisle and watch for racking blocking the view.",
+      "• Consider dimming to a low level rather than switching fully off in quiet aisles, for safety."
+    ].join("\n") },
+  { title:"LED retrofit",
+    q:"A customer replaced 20 fluorescent fittings with LED but kept their existing 230V sensor. A few weeks later, the sensor’s relay has started sticking and the lights don’t always switch off. What do you check first, and why?",
+    a:[
+      "• LED drivers draw a short, sharp inrush current at switch-on, often far higher than the fluorescent fittings they replaced.",
+      "• That surge can wear or weld the relay contacts, even if the total wattage looks well within the rating.",
+      "• Check the relay’s rating for LED (capacitive) loads and how many fittings are on one switching channel.",
+      "• Fixes: split the load over more channels, use a contactor or relay rated for the inrush, or choose a sensor suited to LED loads."
+    ].join("\n") },
+  { title:"Yearly office reshuffle",
+    q:"A customer reshuffles their office every year and worries that each change means rewiring the lighting. How would a DALI-2 system help, and how would you explain it to them in plain language?",
+    a:[
+      "• In DALI each luminaire has its own address, and groups and scenes are stored in the system, not in the wiring.",
+      "• When the layout changes, luminaires are regrouped during re-commissioning, with no change to the cabling.",
+      "• So the lighting follows the new layout without an electrician rewiring circuits.",
+      "• A strong selling point for flexible spaces that change often."
+    ].join("\n") },
+  { title:"Electrician’s wiring question",
+    q:"An electrician on site asks you two things. Does polarity matter on the DALI cable? And does the DALI line have to be one continuous daisy-chain? What do you tell them?",
+    a:[
+      "• DALI is polarity-free, so the two wires can be connected either way round.",
+      "• The topology is free: daisy-chain, star or tree are all fine.",
+      "• The one thing to avoid is a loop. The cable must never run in a ring back to where it started.",
+      "• Stay within the line’s limits: about 300 m between the furthest devices on 1.5 mm² cable (thinner cable means shorter), with no more than 2 V of voltage drop."
+    ].join("\n") },
+  { title:"Long cable run",
+    q:"A contractor plans one DALI line around a large warehouse, using 1.5 mm² cable. The two furthest luminaires would be about 450 m apart along the cable. What do you flag, and what do you suggest?",
+    a:[
+      "• The usual design limit is about 300 m between the two furthest devices on 1.5 mm² cable. It comes from the 2 V voltage-drop limit, and thinner cable means a shorter limit.",
+      "• 450 m is too far for one line. Split the building across more than one DALI line, each with its own bus power supply.",
+      "• Or re-plan the cabling, for example as a star or tree from a central point, so no two devices are more than 300 m apart. It’s the distance between devices that counts, not the total cable.",
+      "• Don’t count on thicker cable to stretch the limit. Calculate it from the cable size and the current on the line, and check the manufacturer’s guidance."
+    ].join("\n") },
+  { title:"Emergency lighting",
+    q:"To save even more energy, a customer wants presence detectors to switch off every light in an empty corridor, including the emergency escape luminaires. How do you respond?",
+    a:[
+      "• The emergency function must still work when the mains supply fails, so a detector must never be able to disable it.",
+      "• Emergency luminaires need a permanent live feed. The normal lighting can be controlled by the detector, the emergency function can’t.",
+      "• Don’t promise anything on the spot. Escape-route lighting is covered by emergency lighting standards (BS 5266-1 and BS EN 1838), so involve the designer or responsible person.",
+      "• Offer what you can do: sensor control of the general lighting, with the emergency fittings kept independent."
+    ].join("\n") },
+  { title:"The savings question",
+    q:"A prospect asks, ‘How much energy will your sensors save us?’ They want a single percentage today. How do you handle it?",
+    a:[
+      "• Don’t quote one blanket figure. Savings depend on occupancy patterns, daylight, operating hours and the controls they have now.",
+      "• Ask about the spaces: how they’re used, how long the lights are on, and what control (if any) is in place.",
+      "• Say where savings are typically highest: intermittently used spaces such as toilets, corridors, stores and meeting rooms.",
+      "• Offer an estimate based on their own usage, with a payback figure, rather than a headline number."
+    ].join("\n") }
+];
+
+/* =========================================================
+   LOGIC (pure functions - tested separately)
+   ========================================================= */
+/* LOGIC-START */
+function parseNames(text){
+  var seen = {}, out = [];
+  String(text || "").split(/[\n,;]+/).forEach(function(raw){
+    var n = raw.trim().replace(/\s+/g, " ");
+    if(!n) return;
+    var k = n.toLowerCase();
+    if(seen[k]) return;
+    seen[k] = true;
+    out.push(n);
+  });
+  return out;
+}
+
+/* Who can be picked for question number qIndex (0-based)?
+   A person picked at question q is resting for the next `cooldown`
+   questions: q+1 ... q+cooldown. They come back at q+cooldown+1.
+   `skipped` = people passed over for THIS question (not penalised). */
+function poolFor(names, history, qIndex, cooldown, skipped){
+  var skipSet = {};
+  (skipped || []).forEach(function(n){ skipSet[String(n).toLowerCase()] = true; });
+  var last = {};
+  (history || []).forEach(function(h){
+    if(h.q < qIndex){
+      var k = String(h.name).toLowerCase();
+      if(last[k] === undefined || h.q > last[k]) last[k] = h.q;
+    }
+  });
+  var eligible = [], resting = [], passed = [];
+  names.forEach(function(n){
+    var k = n.toLowerCase();
+    if(skipSet[k]){ passed.push(n); return; }
+    var l = last[k];
+    if(l !== undefined && (qIndex - l) <= cooldown){
+      resting.push({ name:n, backIn:(l + cooldown + 1) - qIndex });
+    } else {
+      eligible.push(n);
+    }
+  });
+  var relaxed = false;
+  if(eligible.length === 0 && resting.length > 0){
+    /* Not enough names to honour the rest rule: use whoever has rested longest. */
+    var maxRest = -1;
+    resting.forEach(function(r){
+      var rest = qIndex - last[r.name.toLowerCase()];
+      if(rest > maxRest) maxRest = rest;
+    });
+    var promoted = {};
+    resting.forEach(function(r){
+      if(qIndex - last[r.name.toLowerCase()] === maxRest) promoted[r.name] = true;
+    });
+    eligible = resting.filter(function(r){ return promoted[r.name]; }).map(function(r){ return r.name; });
+    resting = resting.filter(function(r){ return !promoted[r.name]; });
+    relaxed = true;
+  }
+  return { eligible:eligible, resting:resting, passed:passed, relaxed:relaxed };
+}
+
+/* Of a cloud copy and a copy saved on this device, keep the newer one (tie -> first). */
+function newest(a, b){
+  if(!a) return b || null;
+  if(!b) return a;
+  var ta = (typeof a.savedAt === "number") ? a.savedAt : 0;
+  var tb = (typeof b.savedAt === "number") ? b.savedAt : 0;
+  return tb > ta ? b : a;
+}
+
+/* CSV for Excel. A leading = + - @ would be read as a formula, so those get a space in front. */
+function csvCell(v){
+  var s = String(v === null || v === undefined ? "" : v);
+  if(/^[=+\-@]/.test(s)) s = " " + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+function buildCsv(items, withModel){
+  var head = ["Question", "Title", "Scenario", "Person", "Their answer (notes)"];
+  if(withModel) head.push("Model answer");
+  var rows = [head];
+  items.forEach(function(it){
+    var r = [it.i + 1, it.q.title, it.q.q, it.name, it.note];
+    if(withModel) r.push(it.q.a);
+    rows.push(r);
+  });
+  return rows.map(function(r){ return r.map(csvCell).join(","); }).join("\r\n");
+}
+
+/* Pictures live in the database as small JPEG data URLs. Only that exact shape is ever put into an <img>,
+   and a picture id is only ever letters and digits, so neither can smuggle anything into the page. */
+function isImgId(v){ return typeof v === "string" && /^[A-Za-z0-9]{6,40}$/.test(v); }
+function validImageRec(r){
+  return !!r && typeof r === "object" && typeof r.data === "string" && r.data.length <= 1500000
+    && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+\/]+={0,2}$/.test(r.data);
+}
+function dimOf(r){
+  var ok = !!r && typeof r.w === "number" && typeof r.h === "number" && r.w >= 1 && r.h >= 1 && r.w < 20000 && r.h < 20000;
+  return ok ? { w:Math.round(r.w), h:Math.round(r.h) } : null;
+}
+/* LOGIC-END */
+
+function copyQ(q){ return { title:String(q.title || ""), q:String(q.q || ""), a:String(q.a || ""), img:isImgId(q.img) ? q.img : "" }; }
+function defaultCfg(){ return { ver:CFG_VERSION, names:[], cooldown:DEFAULT_COOLDOWN, showFirst:true, questions:STARTER_QUESTIONS.map(copyQ) }; }
+function sanitizeCfg(c){
+  var out = { ver:CFG_VERSION, names:[], cooldown:DEFAULT_COOLDOWN, showFirst:true, questions:[] };
+  if(c && Array.isArray(c.names)) out.names = parseNames(c.names.join("\n"));
+  if(c && typeof c.cooldown === "number" && c.cooldown >= 0) out.cooldown = Math.min(20, Math.floor(c.cooldown));
+  /* One-time change. Settings saved before version 2 that still say 3 (the old standard) become 4.
+     A different number, or anything saved since, is left exactly as it is. */
+  if(c && !(c.ver >= 2) && typeof c.cooldown === "number" && out.cooldown === 3) out.cooldown = DEFAULT_COOLDOWN;
+  if(c && typeof c.showFirst === "boolean") out.showFirst = c.showFirst;
+  if(c && typeof c.savedAt === "number") out.savedAt = c.savedAt;
+  if(c && Array.isArray(c.questions)){
+    out.questions = c.questions
+      .filter(function(q){ return q && typeof q.q === "string" && q.q.trim().length > 0; })
+      .map(copyQ);
+  }
+  return out;
+}
+function newSession(){ return { qIndex:0, phase:"ready", current:null, skipped:[], history:[], notes:{} }; }
+function sanitizeSession(s){
+  var out = newSession();
+  if(!s || typeof s !== "object") return out;
+  if(typeof s.qIndex === "number" && s.qIndex >= 0) out.qIndex = Math.floor(s.qIndex);
+  if(["ready","picked","answer","done"].indexOf(s.phase) !== -1) out.phase = (s.phase === "answer") ? "picked" : s.phase;   /* older saves had a separate "answer" step; it is now the same screen as "picked" (the model answer is a Reveal button there) */
+  if(typeof s.current === "string") out.current = s.current;
+  if(typeof s.savedAt === "number") out.savedAt = s.savedAt;
+  if(Array.isArray(s.skipped)) out.skipped = s.skipped.filter(function(x){ return typeof x === "string"; });
+  if(Array.isArray(s.history)) out.history = s.history.filter(function(h){ return h && typeof h.q === "number" && typeof h.name === "string"; });
+  if(s.notes && typeof s.notes === "object" && !Array.isArray(s.notes)){
+    Object.keys(s.notes).forEach(function(k){
+      if(/^\d+$/.test(k) && typeof s.notes[k] === "string") out.notes[k] = s.notes[k].slice(0, 20000);
+    });
+  }
+  if(out.phase === "picked" && !out.current) out.phase = "ready";
+  return out;
+}
+
+/* ============================= STATE ============================= */
+var CFG = defaultCfg();
+var SESSION = newSession();
+var UI = { screen:"loading", lastView:"", spinning:false, saving:false, rotation:0, wheelNames:[], draft:null, dirty:false, savedMsg:"",
+           storage:"unknown", storageWhy:"", qaFrom:"home", revealed:false,
+           modelFor:-1 };   /* modelFor = the question whose model answer is showing on the question screen (-1 = none) */
+
+/* ============================= STORAGE ============================= */
+/* One request with a hard time limit. Never rejects and never hangs. */
+function request(url, opts, ms){
+  return new Promise(function(resolve){
+    var done = false, ctl = null, timer = null;
+    function finish(v){ if(done) return; done = true; clearTimeout(timer); resolve(v); }
+    timer = setTimeout(function(){
+      try{ if(ctl) ctl.abort(); }catch(e){}
+      finish({ ok:false, why:"timed out" });
+    }, ms);
+    if(typeof fetch !== "function"){ finish({ ok:false, why:"browser can’t reach the network" }); return; }
+    try{ ctl = (typeof AbortController === "function") ? new AbortController() : null; }catch(e){ ctl = null; }
+    var o = opts || {};
+    if(ctl) o.signal = ctl.signal;
+    try{
+      fetch(url, o).then(function(res){
+        return res.text().then(function(t){ finish({ ok:res.ok, status:res.status, text:t }); });
+      }).catch(function(){ finish({ ok:false, why:"network blocked or offline" }); });
+    }catch(e){ finish({ ok:false, why:"network blocked or offline" }); }
+  });
+}
+function restHeaders(extra){
+  var h = { "apikey":SUPABASE_ANON_KEY, "Authorization":"Bearer " + SUPABASE_ANON_KEY };
+  for(var k in extra){ if(Object.prototype.hasOwnProperty.call(extra, k)) h[k] = extra[k]; }
+  return h;
+}
+async function remoteGet(key, ms){
+  var r = await request(SUPABASE_URL + "/rest/v1/quiz_data?select=value&key=eq." + encodeURIComponent(key),
+    { method:"GET", headers:restHeaders({ "Accept-Profile":"public" }) }, ms || STORAGE_TIMEOUT_MS);
+  if(!r.ok) return { ok:false, why:r.why || ("HTTP " + r.status) };
+  try{
+    var rows = JSON.parse(r.text);
+    if(!Array.isArray(rows)) return { ok:false, why:"unexpected reply" };
+    return { ok:true, value: rows.length ? rows[0].value : null };
+  }catch(e){ return { ok:false, why:"unexpected reply" }; }
+}
+async function remoteSet(key, val, ms){
+  var r = await request(SUPABASE_URL + "/rest/v1/quiz_data?on_conflict=key",
+    { method:"POST",
+      headers:restHeaders({ "Content-Type":"application/json", "Prefer":"resolution=merge-duplicates", "Content-Profile":"public" }),
+      body:JSON.stringify({ key:key, value:val, updated_at:new Date().toISOString() }) }, ms || STORAGE_TIMEOUT_MS);
+  return r.ok ? { ok:true } : { ok:false, why:r.why || ("HTTP " + r.status) };
+}
+function localGet(key){
+  try{ var raw = localStorage.getItem("rl_" + key); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+function localSet(key, val){
+  try{ localStorage.setItem("rl_" + key, JSON.stringify(val)); return true; }catch(e){ return false; }
+}
+/* Reads the cloud copy and this device's copy and keeps the newer one. */
+async function loadKey(key){
+  var r = await remoteGet(key);
+  var local = localGet(key);
+  if(r.ok) return { value:newest(r.value, local), cloud:true, why:"" };
+  return { value:local, cloud:false, why:r.why || "" };
+}
+async function saveKey(key, val){
+  localSet(key, val);
+  var r = await remoteSet(key, val);
+  UI.storage = r.ok ? "cloud" : "local";
+  if(!r.ok) UI.storageWhy = r.why || "";
+  return r.ok;
+}
+/* Session saves: this device straight away; the cloud one at a time, always the latest state. */
+var pendingSnapshot = null, sessionBusy = false;
+function saveSession(){
+  SESSION.savedAt = Date.now();
+  var snap = JSON.parse(JSON.stringify(SESSION));
+  localSet(SESSION_KEY, snap);
+  pendingSnapshot = snap;
+  if(!sessionBusy) flushSession();
+}
+async function flushSession(){
+  sessionBusy = true;
+  try{
+    while(pendingSnapshot){
+      var s = pendingSnapshot; pendingSnapshot = null;
+      var r = await remoteSet(SESSION_KEY, s);
+      UI.storage = r.ok ? "cloud" : "local";
+      if(!r.ok) UI.storageWhy = r.why || "";
+    }
+  }catch(e){}
+  sessionBusy = false;
+  showNoteState();
+}
+
+/* ============================= PICTURES ============================= */
+/* A scenario can carry one picture. It is shrunk in the browser (about 1280 px wide, JPEG) and saved as its own
+   row in the same table ("roulette:img:<id>"), so the scenario list itself stays small and quick to load.
+   A picture is only fetched when a question needs it, then a copy is kept on this device. */
+var IMG_KEY = "roulette:img:";
+var PENDING_KEY = "roulette:imgpending";   /* pictures added on this device that the shared database may not have yet */
+var IMG = {};        /* id -> data URL */
+var IMGDIM = {};     /* id -> { w, h } so the page can reserve the space before the picture is drawn */
+var IMGSTATE = {};   /* id -> "loading" | "ok" | "failed" */
+var PENDING = null;
+
+function pending(){
+  if(PENDING === null){
+    var p = localGet(PENDING_KEY);
+    PENDING = Array.isArray(p) ? p.filter(isImgId) : [];
+  }
+  return PENDING;
+}
+function setPending(list){ PENDING = list; localSet(PENDING_KEY, list); }
+function localImgChars(exceptId){
+  var n = 0;
+  try{
+    for(var i = 0; i < localStorage.length; i++){
+      var k = localStorage.key(i);
+      if(k && k.indexOf("rl_" + IMG_KEY) === 0 && k !== "rl_" + IMG_KEY + exceptId){ n += (localStorage.getItem(k) || "").length; }
+    }
+  }catch(e){}
+  return n;
+}
+function cacheImageLocally(id, rec){
+  if(localImgChars(id) + rec.data.length > LOCAL_IMG_BUDGET) return false;   /* never crowd out notes and settings */
+  return localSet(IMG_KEY + id, rec);
+}
+function dropLocalImage(id){ try{ localStorage.removeItem("rl_" + IMG_KEY + id); }catch(e){} }
+function newImageId(){ return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+/* A picture the user has just added: keep it in memory, on this device, and mark it as "still to upload". */
+function rememberImage(id, data, w, h){
+  IMG[id] = data; IMGDIM[id] = { w:w, h:h }; IMGSTATE[id] = "ok";
+  var cached = cacheImageLocally(id, { id:id, data:data, w:w, h:h, savedAt:Date.now() });
+  var p = pending().slice();
+  if(p.indexOf(id) === -1){ p.push(id); setPending(p); }
+  return cached;
+}
+/* Memory -> this device -> the shared database. Resolves "ok" or "failed", never throws. */
+async function fetchImage(id){
+  var key = IMG_KEY + id;
+  var loc = localGet(key);
+  if(validImageRec(loc)){
+    IMG[id] = loc.data; var d1 = dimOf(loc); if(d1) IMGDIM[id] = d1;
+    return "ok";
+  }
+  var r = await remoteGet(key, IMAGE_TIMEOUT_MS);
+  if(r.ok && validImageRec(r.value)){
+    IMG[id] = r.value.data; var d2 = dimOf(r.value); if(d2) IMGDIM[id] = d2;
+    cacheImageLocally(id, r.value);
+    return "ok";
+  }
+  return "failed";
+}
+function ensureImage(id){
+  if(!isImgId(id) || IMG[id] || IMGSTATE[id] === "loading") return;
+  IMGSTATE[id] = "loading";
+  fetchImage(id).then(function(res){ IMGSTATE[id] = res; paintPics(id); },
+                      function(){ IMGSTATE[id] = "failed"; paintPics(id); });
+}
+function retryPic(id){
+  if(!isImgId(id)) return;
+  IMGSTATE[id] = "";
+  var els = document.querySelectorAll('.qimg-ph[data-imgid="' + id + '"]');
+  for(var k = 0; k < els.length; k++){
+    els[k].classList.remove("failed"); els[k].removeAttribute("onclick"); els[k].textContent = "Loading picture…";
+  }
+  ensureImage(id);
+}
+
+function picAlt(q){ return (q && q.title ? q.title + " — " : "") + "scenario picture"; }
+function imgTag(id, cls, alt){
+  var d = IMGDIM[id];
+  return '<img class="qimg ' + esc(cls) + '" data-imgid="' + id + '" src="' + esc(IMG[id]) + '"'
+    + (d ? ' width="' + d.w + '" height="' + d.h + '"' : '') + ' alt="' + esc(alt) + '" title="Click to enlarge" onclick="zoomPic(this)">';
+}
+function placeholderHtml(id, cls, alt, failed){
+  return '<div class="qimg-ph ' + esc(cls) + (failed ? ' failed' : '') + '" data-imgid="' + id + '" data-cls="' + esc(cls) + '" data-alt="' + esc(alt) + '"'
+    + (failed ? ' onclick="retryPic(\'' + id + '\')"' : '') + '>'
+    + (failed ? 'Picture couldn’t be loaded — tap to try again' : 'Loading picture…') + '</div>';
+}
+/* The picture for a scenario, or a placeholder that turns into the picture as soon as it has loaded. */
+function picHtml(q, cls){
+  if(!q || !isImgId(q.img)) return "";
+  if(IMG[q.img]) return imgTag(q.img, cls, picAlt(q));
+  return placeholderHtml(q.img, cls, picAlt(q), IMGSTATE[q.img] === "failed");
+}
+function paintPics(id){
+  var els = document.querySelectorAll('.qimg-ph[data-imgid="' + id + '"]');
+  for(var k = 0; k < els.length; k++){
+    var el = els[k], cls = el.getAttribute("data-cls") || "qimg-session", alt = el.getAttribute("data-alt") || "";
+    var tmp = document.createElement("div");
+    tmp.innerHTML = IMG[id] ? imgTag(id, cls, alt) : placeholderHtml(id, cls, alt, true);
+    if(el.parentNode && tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+  }
+}
+/* After every render: start loading whatever the screen is waiting for, plus the next question's picture. */
+function hydratePics(){
+  var els = document.querySelectorAll(".qimg-ph[data-imgid]");
+  for(var k = 0; k < els.length; k++){
+    var id = els[k].getAttribute("data-imgid");
+    if(IMGSTATE[id] !== "failed") ensureImage(id);
+  }
+  if(UI.screen === "session" && !sessionIsDone()){
+    [SESSION.qIndex, SESSION.qIndex + 1].forEach(function(i){
+      var qq = CFG.questions[i];
+      if(qq && qq.img) ensureImage(qq.img);
+    });
+  }
+}
+/* Print / PDF: give pictures that are still loading a moment, so they are in the file. */
+function printNow(){
+  if(!document.querySelector(".qimg-ph[data-imgid]:not(.failed)")){ window.print(); return; }
+  hydratePics();
+  var t0 = Date.now();
+  (function wait(){
+    if(document.querySelector(".qimg-ph[data-imgid]:not(.failed)") && Date.now() - t0 < 9000){ setTimeout(wait, 120); return; }
+    window.print();
+  })();
+}
+
+/* Full-screen view of a picture (click it again, click anywhere, or press Esc to close). */
+function zoomPic(el){
+  var id = el && el.getAttribute ? el.getAttribute("data-imgid") : "";
+  if(!isImgId(id) || !IMG[id]) return;
+  closeZoom();
+  var box = document.createElement("div");
+  box.id = "lightbox";
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-label", "Picture — click to close");
+  box.onclick = closeZoom;
+  var im = document.createElement("img");
+  im.src = IMG[id];
+  im.alt = el.getAttribute("alt") || "";
+  box.appendChild(im);
+  document.body.appendChild(box);
+}
+function closeZoom(){
+  var b = document.getElementById("lightbox");
+  if(b && b.parentNode) b.parentNode.removeChild(b);
+}
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeZoom(); });
+
+/* Shrink a picked file to a small JPEG in the browser. Resolves { ok, data, w, h } or { ok:false, why }. */
+function shrinkImage(file){
+  return new Promise(function(resolve){
+    var url = "", done = false, timer = null;
+    function end(v){ if(done) return; done = true; clearTimeout(timer); if(url){ try{ URL.revokeObjectURL(url); }catch(e){} } resolve(v); }
+    function fail(why){ end({ ok:false, why:why }); }
+    timer = setTimeout(function(){ fail("That picture took too long to read — try a smaller JPG or PNG."); }, 20000);
+    var BAD = "Couldn’t read that picture — try a JPG or PNG.";
+    var looksLikePicture = !!file && (/^image\//i.test(file.type || "") || /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif)$/i.test(file.name || ""));
+    if(!looksLikePicture){ fail("That doesn’t look like a picture — try a JPG or PNG."); return; }
+    if(file.size > 30 * 1024 * 1024){ fail("That picture is over 30 MB — pick a smaller one."); return; }
+    var img = new Image();
+    img.onload = function(){
+      try{
+        var w = img.naturalWidth, h = img.naturalHeight;
+        if(!w || !h){ fail(BAD); return; }
+        var steps = [[1280, 0.82], [1280, 0.7], [1024, 0.7], [800, 0.65], [640, 0.6]], out = null;
+        for(var k = 0; k < steps.length; k++){
+          var s = Math.min(1, steps[k][0] / Math.max(w, h));
+          var cw = Math.max(1, Math.round(w * s)), ch = Math.max(1, Math.round(h * s));
+          var cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
+          var cx = cv.getContext("2d");
+          if(!cx){ fail(BAD); return; }
+          cx.fillStyle = "#ffffff"; cx.fillRect(0, 0, cw, ch);   /* a see-through PNG would turn black as a JPEG */
+          cx.drawImage(img, 0, 0, cw, ch);
+          var data = cv.toDataURL("image/jpeg", steps[k][1]);
+          out = { data:data, w:cw, h:ch };
+          if(data.length <= MAX_IMG_CHARS) break;
+        }
+        if(!out || out.data.indexOf("data:image/jpeg;base64,") !== 0 || out.data.length > MAX_IMG_CHARS){
+          fail("Couldn’t shrink that picture enough — try a smaller one."); return;
+        }
+        end({ ok:true, data:out.data, w:out.w, h:out.h });
+      }catch(e){ fail(BAD); }
+    };
+    img.onerror = function(){ fail(BAD); };
+    try{ url = URL.createObjectURL(file); img.src = url; }catch(e){ fail(BAD); }
+  });
+}
+
+/* Called by Save: send the pictures this scenario list uses and the database doesn't have yet.
+   Pictures that were added but are no longer used (removed, or from a discarded draft) are cleaned up. */
+async function uploadPendingPictures(cfg){
+  var used = {};
+  cfg.questions.forEach(function(q){ if(q.img) used[q.img] = true; });
+  var list = pending().slice(), keep = [], why = "";
+  for(var k = 0; k < list.length; k++){
+    var id = list[k];
+    if(!used[id]){ dropLocalImage(id); continue; }
+    var rec = null;
+    if(IMG[id]){ var d = IMGDIM[id] || {}; rec = { id:id, data:IMG[id], w:d.w, h:d.h, savedAt:Date.now() }; }
+    else { var loc = localGet(IMG_KEY + id); if(validImageRec(loc)) rec = loc; }
+    if(!rec) continue;   /* nothing left to send */
+    var r = await remoteSet(IMG_KEY + id, rec, IMAGE_TIMEOUT_MS);
+    if(!r.ok){ keep.push(id); if(!why) why = r.why || "upload failed"; }
+  }
+  setPending(keep);
+  return why ? { ok:false, why:why } : { ok:true, why:"" };
+}
+
+/* ============================= SOUND ============================= */
+var audioCtx = null, soundOn = true, lastTick = 0;
+try{ if(localStorage.getItem("quizmuted") === "1") soundOn = false; }catch(e){}
+function ac(){
+  if(!audioCtx){
+    try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ audioCtx = null; }
+  }
+  if(audioCtx && audioCtx.state === "suspended"){ audioCtx.resume(); }
+  return audioCtx;
+}
+function blip(freq, dur, vol, type, delay){
+  if(!soundOn) return;
+  var c = ac();
+  if(!c) return;
+  var t = c.currentTime + (delay || 0);
+  var o = c.createOscillator(), g = c.createGain();
+  o.type = type || "sine";
+  o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(c.destination);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+function tick(){
+  var now = performance.now();
+  if(now - lastTick < 40) return;
+  lastTick = now;
+  blip(900, 0.05, 0.05, "square");
+}
+function fanfare(){
+  [523.25, 659.25, 783.99, 1046.5].forEach(function(f, i){ blip(f, 0.28, 0.07, "triangle", i * 0.12); });
+}
+function toggleMute(){
+  soundOn = !soundOn;
+  document.getElementById("muteBtn").innerHTML = soundOn ? "&#128266;" : "&#128263;";
+  try{ localStorage.setItem("quizmuted", soundOn ? "0" : "1"); }catch(e){}
+}
+
+/* ============================= HELPERS ============================= */
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+function mod(a, b){ return ((a % b) + b) % b; }
+function plural(n, one, many){ return n === 1 ? one : many; }
+function armedTap(el, confirmText, action){
+  if(el.dataset.armed === "1"){ action(); return; }
+  var original = el.textContent;
+  el.dataset.armed = "1";
+  el.textContent = confirmText;
+  setTimeout(function(){
+    if(el && el.dataset.armed === "1"){ el.dataset.armed = "0"; el.textContent = original; }
+  }, 3000);
+}
+function sessionIsDone(){ return SESSION.phase === "done" || SESSION.qIndex >= CFG.questions.length; }
+function storageBanner(){
+  if(UI.storage !== "local") return "";
+  var why = UI.storageWhy ? " (" + esc(UI.storageWhy) + ")" : "";
+  var tip = (typeof location !== "undefined" && location.protocol === "file:")
+    ? '<div style="margin-top:6px;">You’re using a downloaded copy of the page. The website link keeps names, questions and answers in the shared database: <b>' + esc(DEPLOYED_URL) + '</b></div>'
+    : "";
+  /* "Network blocked or offline" has a few usual causes. A free Supabase project that has been idle for about a week is paused, and then its address stops answering. */
+  var netFail = /network blocked|timed out|can’t reach the network/.test(UI.storageWhy || "");
+  var paused = netFail
+    ? '<div style="margin-top:6px;">If you are online, the Supabase project may be <b>paused</b> (free projects pause after about a week without use). Open <b>supabase.com/dashboard</b>, pick the project and press <b>Restore project</b>. An ad-blocker, VPN or firewall that blocks <b>supabase.co</b> shows the same message.</div>'
+    : "";
+  return '<div class="warn">Couldn’t reach the shared database' + why + ', so changes are being saved on <b>this device only</b>.' + paused + tip + '</div>';
+}
+function confettiHtml(){
+  var colors = ["var(--a)","var(--b)","var(--c)","var(--d)"], out = "";
+  for(var i = 0; i < 18; i++){
+    out += '<div class="confetti" style="left:' + Math.round(Math.random() * 100) + '%;background:' + colors[i % 4]
+      + ';animation-delay:' + (Math.random() * 0.6).toFixed(2) + 's;animation-duration:' + (1.8 + Math.random() * 1.2).toFixed(2) + 's;"></div>';
+  }
+  return out;
+}
+
+/* ============================= WHEEL ============================= */
+function pointerIndex(rot, n){
+  var seg = 2 * Math.PI / n;
+  return Math.floor(mod(-Math.PI / 2 - rot, 2 * Math.PI) / seg) % n;
+}
+function drawWheel(){
+  var cv = document.getElementById("wheel");
+  if(!cv) return;
+  var size = cv.clientWidth || 420;
+  var dpr = window.devicePixelRatio || 1;
+  var px = Math.round(size * dpr);
+  if(cv.width !== px){ cv.width = px; cv.height = px; }
+  cv.style.height = size + "px";
+  var ctx = cv.getContext("2d");
+  if(!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  var names = UI.wheelNames, n = names.length;
+  var cx = size / 2, cy = size / 2, r = size / 2 - 14;
+  if(n === 0){
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.lineWidth = 6; ctx.strokeStyle = "#2a3466"; ctx.stroke();
+    return;
+  }
+  var seg = 2 * Math.PI / n, i;
+  for(i = 0; i < n; i++){
+    var a0 = UI.rotation + i * seg, a1 = a0 + seg;
+    var ci = i % PALETTE.length;
+    if(i === n - 1 && n > 1 && ci === 0) ci = 3;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, a0, a1); ctx.closePath();
+    ctx.fillStyle = PALETTE[ci]; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#0a0e1a"; ctx.stroke();
+  }
+  var fam = "px -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+  var fs = Math.max(12, Math.min(24, Math.floor(size / (n + 6) * 1.6)));
+  var maxW = Math.min(r * 0.68, r - 48);   /* the label runs from r-16 inwards; keep its inner end clear of the centre hub (22 px) on a small wheel */
+  ctx.font = "700 " + fs + fam;
+  /* On a smaller wheel, shrink the lettering (down to 11 px) until the longest name fits, before cutting any name short. */
+  var longest = 0;
+  for(i = 0; i < n; i++){ longest = Math.max(longest, ctx.measureText(names[i]).width); }
+  while(fs > 11 && longest > maxW){
+    fs--; ctx.font = "700 " + fs + fam;
+    longest = 0;
+    for(i = 0; i < n; i++){ longest = Math.max(longest, ctx.measureText(names[i]).width); }
+  }
+  ctx.textBaseline = "middle"; ctx.textAlign = "right"; ctx.fillStyle = "#0a0e1a";
+  for(i = 0; i < n; i++){
+    var label = names[i];
+    while(label.length > 1 && ctx.measureText(label).width > maxW){ label = label.slice(0, -1); }
+    if(label !== names[i]) label = label.slice(0, -1) + "…";
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(UI.rotation + (i + 0.5) * seg);
+    ctx.fillText(label, r - 16, 0);
+    ctx.restore();
+  }
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+  ctx.lineWidth = 6; ctx.strokeStyle = "#f4f6ff"; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, 22, 0, 2 * Math.PI);
+  ctx.fillStyle = "#161d3a"; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = "#f4f6ff"; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 15, 3); ctx.lineTo(cx + 15, 3); ctx.lineTo(cx, 38); ctx.closePath();
+  ctx.fillStyle = "#f4f6ff"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = "#0a0e1a"; ctx.stroke();
+}
+/* Before the spin: everyone eligible. After it (also after a reload): the same wheel,
+   turned so the person who was picked sits under the pointer. */
+function prepareWheel(){
+  var pool = poolFor(CFG.names, SESSION.history, SESSION.qIndex, CFG.cooldown, SESSION.skipped);
+  var names = pool.eligible.slice();
+  if(SESSION.phase !== "ready" && SESSION.current){
+    var idx = names.indexOf(SESSION.current);
+    if(idx === -1){ names = [SESSION.current]; idx = 0; }
+    UI.wheelNames = names;
+    var n = names.length, seg = 2 * Math.PI / n;
+    if(pointerIndex(UI.rotation, n) !== idx){
+      UI.rotation = mod(-Math.PI / 2 - (idx + 0.5) * seg, 2 * Math.PI);
+    }
+  } else {
+    UI.wheelNames = names;
+  }
+  drawWheel();
+}
+function animateSpin(targetIdx, done){
+  var n = UI.wheelNames.length;
+  var seg = 2 * Math.PI / n;
+  var L = targetIdx * seg + seg * (0.15 + 0.7 * Math.random());
+  var R0 = mod(UI.rotation, 2 * Math.PI);
+  var Rt = mod(-Math.PI / 2 - L, 2 * Math.PI);
+  var turns = 5 + Math.floor(Math.random() * 3);
+  var delta = turns * 2 * Math.PI + mod(Rt - R0, 2 * Math.PI);
+  var t0 = performance.now();
+  var lastIdx = pointerIndex(R0, n);
+  function frame(now){
+    var x = Math.min(1, (now - t0) / SPIN_MS);
+    var e = 1 - Math.pow(1 - x, 4);
+    UI.rotation = R0 + delta * e;
+    drawWheel();
+    var idx = pointerIndex(UI.rotation, n);
+    if(idx !== lastIdx){ lastIdx = idx; tick(); }
+    if(x < 1){ requestAnimationFrame(frame); }
+    else { UI.rotation = mod(UI.rotation, 2 * Math.PI); done(); }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ============================= SESSION ACTIONS ============================= */
+function goHome(){
+  if(UI.spinning) return;
+  if(UI.screen === "admin" && UI.dirty) return;
+  /* From the Q&A sheet opened out of Admin, go back to the admin draft so unsaved edits aren't lost. */
+  if(UI.screen === "qa" && UI.qaFrom === "admin" && UI.draft){ closeQA(); return; }
+  UI.screen = "home";
+  render();
+}
+function startNewSession(){
+  if(UI.spinning) return;
+  SESSION = newSession();
+  UI.revealed = false;
+  UI.modelFor = -1;
+  saveSession();
+  UI.screen = "session";
+  render();
+}
+function resumeSession(){ UI.screen = "session"; render(); }
+function viewResults(){ UI.revealed = false; UI.modelFor = -1; UI.screen = "session"; render(); }
+
+function startSpin(){
+  if(UI.spinning || sessionIsDone() || SESSION.phase !== "ready") return;
+  var pool = poolFor(CFG.names, SESSION.history, SESSION.qIndex, CFG.cooldown, SESSION.skipped);
+  if(pool.eligible.length === 0){
+    SESSION.skipped = [];
+    pool = poolFor(CFG.names, SESSION.history, SESSION.qIndex, CFG.cooldown, []);
+  }
+  if(pool.eligible.length === 0) return;
+  UI.wheelNames = pool.eligible.slice();
+  var idx = Math.floor(Math.random() * pool.eligible.length);
+  var winner = pool.eligible[idx];
+  UI.spinning = true;
+  var btn = document.getElementById("spinBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "Spinning…"; }
+  ac();
+  animateSpin(idx, function(){ finishSpin(winner); });
+}
+function finishSpin(winner){
+  UI.spinning = false;
+  UI.modelFor = -1;   /* a newly picked person answers before the model answer is shown */
+  SESSION.history = SESSION.history.filter(function(h){ return h.q !== SESSION.qIndex; });
+  SESSION.history.push({ q:SESSION.qIndex, name:winner });
+  SESSION.current = winner;
+  SESSION.phase = "picked";
+  saveSession();
+  fanfare();
+  render();
+  focusNotes();
+}
+function focusNotes(){
+  var el = document.getElementById("noteBox");
+  if(el){ try{ el.focus({ preventScroll:true }); }catch(e){} }
+}
+function skipClick(el){
+  var t = SESSION.notes && SESSION.notes[SESSION.qIndex];
+  if(t && String(t).trim()){ armedTap(el, "Notes will be cleared — tap again", skipAndRespin); }
+  else { skipAndRespin(); }
+}
+function skipAndRespin(){
+  if(UI.spinning || SESSION.phase !== "picked") return;
+  UI.modelFor = -1;
+  var who = SESSION.current;
+  SESSION.history = SESSION.history.filter(function(h){ return h.q !== SESSION.qIndex; });
+  if(SESSION.notes) delete SESSION.notes[SESSION.qIndex];
+  if(who) SESSION.skipped.push(who);
+  if(SESSION.skipped.length >= CFG.names.length) SESSION.skipped = [];
+  SESSION.current = null;
+  SESSION.phase = "ready";
+  saveSession();
+  render();
+  startSpin();
+}
+/* "Next question": the person's answer is already saved (it saves as you type). An empty box is probably a
+   premature click, so that needs a second tap. */
+function nextClick(el){
+  var t = SESSION.notes && SESSION.notes[SESSION.qIndex];
+  if(t && String(t).trim()){ nextQuestion(); }
+  else { armedTap(el, "Nothing typed yet — tap again to continue", nextQuestion); }
+}
+/* The model answer for the question on screen: shown when the facilitator presses "Reveal model answer", hidden
+   again with the same button. It lives on this screen only. The answers page at the end has its own reveal. */
+function modelVisible(){ return SESSION.phase === "picked" && UI.modelFor === SESSION.qIndex; }
+function modelBoxHtml(){
+  var qn = CFG.questions[SESSION.qIndex];
+  var has = !!qn && String(qn.a || "").trim().length > 0;
+  return '<div class="modelbox"><div class="rep-label">Model answer</div><div class="model-text">'
+    + (has ? esc(qn.a) : '<span class="muted">No model answer was written for this scenario.</span>') + '</div></div>';
+}
+function paintModel(){
+  var on = modelVisible();
+  var slot = document.getElementById("modelSlot");
+  if(slot) slot.innerHTML = on ? modelBoxHtml() : "";
+  var b = document.getElementById("modelBtn");
+  if(b){ b.textContent = on ? "Hide model answer" : "👁 Reveal model answer"; b.setAttribute("aria-expanded", on ? "true" : "false"); }
+}
+function toggleModel(){
+  if(UI.spinning || SESSION.phase !== "picked") return;
+  UI.modelFor = modelVisible() ? -1 : SESSION.qIndex;
+  paintModel();   /* only this part of the page changes, so the notes box keeps what was typed and the confetti doesn't restart */
+}
+function nextQuestion(){
+  if(SESSION.phase !== "picked") return;
+  UI.modelFor = -1;
+  if(SESSION.qIndex + 1 >= CFG.questions.length){
+    SESSION.phase = "done";
+    UI.revealed = false;
+  } else {
+    SESSION.qIndex += 1;
+    SESSION.phase = "ready";
+    SESSION.current = null;
+    SESSION.skipped = [];
+  }
+  saveSession();
+  render();
+}
+function endSession(){
+  if(UI.spinning) return;
+  SESSION.phase = "done";
+  UI.revealed = false;
+  UI.modelFor = -1;
+  saveSession();
+  render();
+}
+
+/* Notes for the current question: kept in the session, saved on this device at once and in the cloud shortly after. */
+var noteTimer = null;
+function noteInput(v){
+  if(!SESSION.notes) SESSION.notes = {};
+  SESSION.notes[SESSION.qIndex] = v;
+  SESSION.savedAt = Date.now();
+  localSet(SESSION_KEY, SESSION);
+  var el = document.getElementById("noteState");
+  if(el) el.textContent = "Saving…";
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(function(){ noteTimer = null; saveSession(); }, 700);
+}
+function noteStateText(){
+  if(noteTimer || pendingSnapshot || sessionBusy) return "Saving…";
+  return (UI.storage === "cloud") ? "Saved to database ✓" : "Saved on this device only";
+}
+function showNoteState(){
+  var el = document.getElementById("noteState");
+  if(!el || noteTimer || pendingSnapshot) return;
+  el.textContent = noteStateText();
+}
+window.addEventListener("pagehide", function(){
+  if(noteTimer){ clearTimeout(noteTimer); noteTimer = null; saveSession(); }
+});
+
+/* ============================= ANSWERS REPORT / EXPORT ============================= */
+function askedList(){
+  var out = [];
+  CFG.questions.forEach(function(q, i){
+    var h = null;
+    for(var k = 0; k < SESSION.history.length; k++){ if(SESSION.history[k].q === i){ h = SESSION.history[k]; break; } }
+    if(h) out.push({ i:i, q:q, name:h.name, note:String((SESSION.notes && SESSION.notes[i]) || "") });
+  });
+  return out;
+}
+/* The model answers stay hidden all session. On the answers page they are revealed on purpose,
+   and what is on screen is what the PDF and the spreadsheet contain. */
+function setRevealed(v){ UI.revealed = !!v; render(); }
+function revealModels(){ UI.revealed = true; fanfare(); render(); }
+function downloadCsv(){
+  var csv = "﻿" + buildCsv(askedList(), UI.revealed);
+  var blob = new Blob([csv], { type:"text/csv;charset=utf-8" });
+  var a = document.createElement("a");
+  var url = URL.createObjectURL(blob);
+  a.href = url;
+  a.download = "scenario-roulette-" + new Date().toISOString().slice(0, 10) + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(e){} }, 2000);
+}
+
+/* ============================= ADMIN ACTIONS ============================= */
+function seedDraft(){
+  UI.draft = { namesText:CFG.names.join("\n"), cooldown:CFG.cooldown, showFirst:CFG.showFirst, questions:CFG.questions.map(copyQ) };
+}
+function openAdmin(){
+  if(UI.spinning) return;
+  seedDraft();
+  UI.dirty = false; UI.savedMsg = "";
+  UI.screen = "admin";
+  render();
+}
+function markDirty(){
+  UI.dirty = true; UI.savedMsg = "";
+  var n = document.getElementById("dirtyNote");
+  if(n) n.textContent = "Unsaved changes";
+}
+function dNames(v){
+  UI.draft.namesText = v; markDirty();
+  var c = document.getElementById("nameCount");
+  if(c){ var k = parseNames(v).length; c.textContent = k + plural(k, " name", " names"); }
+}
+function dCooldown(v){ UI.draft.cooldown = v; markDirty(); }
+function dShowFirst(v){ UI.draft.showFirst = !!v; markDirty(); }
+function dQ(i, field, v){ UI.draft.questions[i][field] = v; markDirty(); }
+function addQ(){
+  UI.draft.questions.push({ title:"", q:"", a:"", img:"" });
+  markDirty(); render();
+  var els = document.querySelectorAll(".qedit");
+  var last = els[els.length - 1];
+  if(last){
+    if(last.scrollIntoView){ last.scrollIntoView({ behavior:"smooth", block:"center" }); }
+    var inp = last.querySelector("input");
+    if(inp) inp.focus();
+  }
+}
+function delQ(i){ UI.draft.questions.splice(i, 1); markDirty(); render(); }
+function moveQ(i, dir){
+  var j = i + dir;
+  if(j < 0 || j >= UI.draft.questions.length) return;
+  var t = UI.draft.questions[i]; UI.draft.questions[i] = UI.draft.questions[j]; UI.draft.questions[j] = t;
+  markDirty(); render();
+}
+function resetStarter(){
+  UI.draft.questions = STARTER_QUESTIONS.map(copyQ);
+  markDirty(); render();
+}
+
+/* Pictures in the Admin editor */
+function picEditHtml(i){
+  var q = UI.draft.questions[i];
+  var has = isImgId(q.img);
+  return (has ? picHtml(q, "qimg-admin") : "")
+    + '<div class="picbtns">'
+    + '<button class="btn btn-ghost" type="button" onclick="document.getElementById(\'picfile-' + i + '\').click()">' + (has ? "Change picture" : "＋ Add a picture") + '</button>'
+    + (has ? '<button class="btn btn-ghost" type="button" onclick="removePic(' + i + ')">Remove picture</button>' : "")
+    + '</div><div class="picmsg" id="picmsg-' + i + '"></div>';
+}
+function setPicMsg(i, text){ var el = document.getElementById("picmsg-" + i); if(el) el.textContent = text || ""; }
+function refreshPicEdit(i){
+  var box = document.getElementById("picedit-" + i);
+  if(box && UI.draft && UI.draft.questions[i]){ box.innerHTML = picEditHtml(i); hydratePics(); }
+}
+function pickPic(i, input){
+  var f = input && input.files && input.files[0];
+  if(input){ try{ input.value = ""; }catch(e){} }   /* so the same file can be picked again */
+  if(f) addPicFromFile(i, f);
+}
+async function addPicFromFile(i, file){
+  if(!UI.draft || !UI.draft.questions[i]) return;
+  var qobj = UI.draft.questions[i];
+  setPicMsg(i, "Preparing picture…");
+  var res = await shrinkImage(file);
+  var idx = UI.draft ? UI.draft.questions.indexOf(qobj) : -1;   /* the list may have been reordered while the picture was prepared */
+  if(idx === -1) return;
+  if(!res.ok){ setPicMsg(idx, res.why); return; }
+  var id = newImageId();
+  var cached = rememberImage(id, res.data, res.w, res.h);
+  qobj.img = id;
+  markDirty();
+  refreshPicEdit(idx);
+  setPicMsg(idx, cached ? "" : "Couldn’t keep a copy of this picture on this device (its storage is full). It will go to the shared database when you press Save.");
+}
+function removePic(i){
+  if(!UI.draft || !UI.draft.questions[i]) return;
+  UI.draft.questions[i].img = "";
+  markDirty();
+  refreshPicEdit(i);
+}
+
+async function saveAdmin(){
+  if(UI.saving || !UI.draft) return;
+  UI.saving = true;
+  var note = document.getElementById("dirtyNote");
+  if(note) note.textContent = pending().length ? "Saving pictures…" : "Saving…";
+  var d = UI.draft;
+  var cd = parseInt(d.cooldown, 10);
+  if(isNaN(cd) || cd < 0) cd = 0;
+  if(cd > 20) cd = 20;
+  CFG = sanitizeCfg({ ver:CFG_VERSION, names:parseNames(d.namesText), cooldown:cd, showFirst:d.showFirst, questions:d.questions });
+  CFG.savedAt = Date.now();
+  /* Pictures go first, so the saved scenarios never point at a picture the database doesn't have. */
+  var up = await uploadPendingPictures(CFG);
+  var ok;
+  if(up.ok){ ok = await saveKey(CFG_KEY, CFG); }
+  else { localSet(CFG_KEY, CFG); UI.storage = "local"; UI.storageWhy = up.why; ok = false; }
+  UI.saving = false;
+  seedDraft();
+  UI.dirty = false;
+  UI.savedMsg = ok ? "Saved ✓" : "Saved on this device only";
+  if(UI.screen === "admin") render();
+}
+function leaveAdmin(){ UI.draft = null; UI.dirty = false; UI.screen = "home"; render(); }
+function backFromAdmin(el){
+  if(UI.dirty){ armedTap(el, "Discard changes?", leaveAdmin); }
+  else { leaveAdmin(); }
+}
+function openQA(from){ UI.qaFrom = (from === "admin") ? "admin" : "home"; UI.screen = "qa"; render(); }
+function closeQA(){
+  if(UI.qaFrom === "admin" && UI.draft){ UI.screen = "admin"; }   /* keep the draft exactly as it was */
+  else { UI.screen = "home"; }
+  render();
+}
+
+/* ============================= SCREENS ============================= */
+function renderDone(){
+  var items = askedList();
+  var total = CFG.questions.length;
+  var notAsked = total - items.length;
+  var dateStr = new Date().toLocaleDateString("en-GB");
+  var rv = !!UI.revealed;
+  var cards = items.map(function(it){
+    var label = it.q.title || (it.q.q.length > 60 ? it.q.q.slice(0, 57) + "…" : it.q.q);
+    return '<div class="rep-item">'
+      + '<div class="rep-head"><span class="rank">Q' + (it.i + 1) + '</span><b>' + esc(label) + '</b><span class="rep-who">' + esc(it.name) + '</span></div>'
+      + '<div class="rep-q">' + esc(it.q.q) + '</div>'
+      + (it.q.img ? picHtml(it.q, "qimg-report") : "")
+      + '<div class="rep-label">' + esc(it.name) + '’s answer</div>'
+      + '<div class="rep-note">' + (it.note.trim() ? esc(it.note) : '<span class="muted">— nothing recorded —</span>') + '</div>'
+      + (rv
+          ? '<div class="rep-label">Model answer</div><div class="rep-model">' + esc(it.q.a || "—") + '</div>'
+          : '<div class="rep-locked noprint">Model answer hidden — reveal it with the button at the top.</div>')
+      + '</div>';
+  }).join("");
+  var bar = "";
+  if(items.length){
+    bar = rv
+      ? '<div class="revealbar done noprint"><div><b>Model answers revealed ✓</b><div class="muted">They are included in the PDF and the spreadsheet.</div></div>'
+        + '<button class="btn btn-ghost" onclick="setRevealed(false)">Hide them again</button></div>'
+      : '<div class="revealbar noprint"><div><b>Model answers are hidden</b><div class="muted">Go through what everyone said first, then reveal what you were hoping to hear.</div></div>'
+        + '<button class="btn btn-primary" onclick="revealModels()">Reveal the model answers</button></div>';
+  }
+  return '<div class="card narrow">'
+    + '<div class="print-header"><h1>Scenario Roulette — Answers</h1><p>' + dateStr + '</p></div>'
+    + '<div class="kicker noprint">Session complete</div>'
+    + '<h2 class="noprint">Answers</h2>'
+    + '<p class="muted">' + items.length + ' of ' + total + plural(total, " scenario", " scenarios") + ' asked'
+    + (notAsked > 0 ? ' · ' + notAsked + ' not asked (left out below)' : '') + '</p>'
+    + bar
+    + (cards || '<p class="muted">No questions were asked.</p>')
+    + '<p class="muted small noprint" style="margin:16px 0 0;">The PDF and the spreadsheet contain what you see on this page — ' + (rv ? 'with' : 'without') + ' the model answers. In the print window, choose “Save as PDF”.</p>'
+    + '<div style="margin-top:12px;">'
+    + '<button class="btn btn-primary" onclick="printNow()">Export as PDF</button>'
+    + '<button class="btn" onclick="downloadCsv()">Download as spreadsheet (.csv)</button>'
+    + '<button class="btn btn-ghost" onclick="armedTap(this,\'Tap again — this clears these answers\',startNewSession)">Start a new session</button>'
+    + '<button class="btn btn-ghost" onclick="goHome()">Back to home</button>'
+    + '</div></div>';
+}
+
+var SCREENS = {
+  loading(){
+    return '<div class="card center"><p class="muted">Loading…</p></div>';
+  },
+
+  home(){
+    var nQ = CFG.questions.length, nN = CFG.names.length;
+    var started = SESSION.phase !== "done" && (SESSION.qIndex > 0 || SESSION.history.length > 0);
+    var finished = SESSION.phase === "done" && SESSION.history.length > 0;
+    var missing = [];
+    if(nN === 0) missing.push("names");
+    if(nQ === 0) missing.push("questions");
+    var actions;
+    if(missing.length){
+      actions = '<div class="notice">Add ' + missing.join(" and ") + ' in Admin first.</div>';
+    } else if(started){
+      actions = '<button class="btn btn-primary" onclick="resumeSession()">Resume — question ' + Math.min(SESSION.qIndex + 1, nQ) + ' of ' + nQ + '</button>'
+        + '<button class="btn" onclick="armedTap(this,\'Tap again to discard progress\',startNewSession)">Start a new session</button>';
+    } else if(finished){
+      actions = '<button class="btn btn-primary" onclick="viewResults()">View last session — answers &amp; export</button>'
+        + '<button class="btn" onclick="armedTap(this,\'Tap again — this clears the last answers\',startNewSession)">Start a new session</button>';
+    } else {
+      actions = '<button class="btn btn-primary" onclick="startNewSession()">Start session</button>';
+    }
+    var ruleText = CFG.cooldown > 0
+      ? ' · whoever is picked sits out the next ' + CFG.cooldown + plural(CFG.cooldown, " question", " questions")
+      : "";
+    return storageBanner() + '<div class="card center narrow">'
+      + '<div class="kicker">Sales team session</div>'
+      + '<h1>🎯 Scenario Roulette</h1>'
+      + '<p>' + nQ + plural(nQ, " scenario question", " scenario questions") + ' · ' + nN + plural(nN, " person", " people") + ' on the wheel' + ruleText + '</p>'
+      + actions
+      + '<button class="btn btn-ghost" onclick="openAdmin()">⚙ Admin — names &amp; questions</button>'
+      + (nQ ? '<button class="btn btn-ghost" onclick="openQA(\'home\')">📄 Q&amp;A sheet — questions &amp; model answers</button>' : '')
+      + '</div>';
+  },
+
+  session(){
+    if(sessionIsDone()) return renderDone();
+    var q = SESSION.qIndex, qn = CFG.questions[q], total = CFG.questions.length;
+    var picked = (SESSION.phase === "picked");
+    var showScenario = picked || CFG.showFirst;
+    var who = esc(SESSION.current || "");
+    var kicker = '<div class="stagehead">Question ' + (q + 1) + ' of ' + total + (showScenario && qn.title ? ' · ' + esc(qn.title) : '') + '</div>';
+
+    /* ---- the wheel card (on the right of a wide screen): the wheel and the spin button, then the winner ---- */
+    var wheelCard;
+    if(!picked){
+      var pool = poolFor(CFG.names, SESSION.history, q, CFG.cooldown, SESSION.skipped);
+      var rest = pool.resting.length
+        ? '<div class="resting"><div class="kicker">Resting — not on the wheel</div>'
+          + pool.resting.map(function(r){ return '<span class="chip waiting">' + esc(r.name) + ' · back in ' + r.backIn + '</span>'; }).join("")
+          + '</div>'
+        : "";
+      var passed = pool.passed.length
+        ? '<div class="resting"><div class="kicker">Skipped for this question</div>'
+          + pool.passed.map(function(n){ return '<span class="chip waiting">' + esc(n) + '</span>'; }).join("")
+          + '</div>'
+        : "";
+      var note = pool.relaxed
+        ? '<div class="notice">Not enough names to rest everyone for ' + CFG.cooldown + plural(CFG.cooldown, " question", " questions") + ', so the wheel is using whoever has rested longest.</div>'
+        : "";
+      wheelCard = '<div class="card center stage-wheel">' + note
+        + '<div class="wheelwrap"><canvas id="wheel"></canvas></div>'
+        + '<button class="btn btn-primary btn-big" id="spinBtn" onclick="startSpin()">🎰 Spin the wheel</button>'
+        + rest + passed + '</div>';
+    } else {
+      var ruleLine = CFG.cooldown > 0
+        ? '<div class="muted">' + who + ' sits out the next ' + CFG.cooldown + plural(CFG.cooldown, " question", " questions") + '.</div>'
+        : "";
+      wheelCard = '<div class="card center stage-wheel">'
+        + '<div class="wheelwrap wheel-after"><canvas id="wheel"></canvas></div>'
+        + '<div class="award-stage">'
+        + '<div class="confetti-layer">' + confettiHtml() + '</div>'
+        + '<div class="award-caption">Your turn</div>'
+        + '<h1 class="winner-name">' + who + '</h1>' + ruleLine + '</div></div>';
+    }
+
+    /* ---- the question card (on the left of a wide screen): the scenario, the notes box under it, the buttons.
+       The model answer stays hidden until the facilitator presses "Reveal model answer" for this question
+       (or reveals them all on the answers page at the end of the session). ---- */
+    var scenarioPic = (showScenario && qn.img) ? '<div class="scenario-pic">' + picHtml(qn, "qimg-session") + '</div>' : "";
+    var scenario = showScenario
+      ? '<div class="scenario"><div class="kicker">Scenario</div><div class="scenario-text">' + esc(qn.q) + '</div>' + scenarioPic + '</div>'
+      : '<div class="scenario"><div class="kicker">Scenario</div><p class="muted" style="margin:0;">The scenario appears once someone is picked.</p></div>';
+    var noteText = String((SESSION.notes && SESSION.notes[q]) || "");
+    var notes = "";
+    if(picked){
+      notes = '<div class="notes">'
+        + '<div class="notes-head"><div class="notes-title"><span class="notes-name">' + who + '</span> — their answer <span class="muted">(your notes)</span></div>'
+        + '<div class="muted small" id="noteState">' + noteStateText() + '</div></div>'
+        + '<textarea id="noteBox" class="notebox" placeholder="Type what ' + who + ' says here…" oninput="noteInput(this.value)">' + esc(noteText) + '</textarea>'
+        + '</div>';
+    } else if(CFG.showFirst){
+      notes = '<div class="notes disabled">'
+        + '<div class="notes-head"><div class="notes-title">Answer notes</div></div>'
+        + '<textarea class="notebox" disabled placeholder="Spin the wheel — this box opens for whoever is picked."></textarea></div>';
+    }
+    var isLast = q + 1 >= total;
+    var modelOn = picked && modelVisible();
+    var buttons = picked
+      ? '<button class="btn btn-ghost btn-reveal" id="modelBtn" aria-expanded="' + (modelOn ? "true" : "false") + '" onclick="toggleModel()">' + (modelOn ? "Hide model answer" : "👁 Reveal model answer") + '</button>'
+        + '<div id="modelSlot">' + (modelOn ? modelBoxHtml() : "") + '</div>'
+        + '<button class="btn btn-primary" onclick="nextClick(this)">' + (isLast ? "Finish — see answers &amp; reveal" : "Next question →") + '</button>'
+        + '<button class="btn btn-ghost" onclick="skipClick(this)">Skip this person &amp; re-spin</button>'
+        + '<p class="muted small" style="margin:2px 0 0;text-align:center;">Reveal the model answer for each question here, or all together at the end.</p>'
+      : "";
+    var questionCard = '<div class="card stage-q">' + scenario + notes + buttons + '</div>';
+    var endBtn = SESSION.history.length
+      ? '<div class="narrow"><button class="btn btn-ghost endbtn" onclick="armedTap(this,\'Tap again to end the session\',endSession)">End session now — see answers &amp; reveal</button></div>'
+      : "";
+    return kicker + '<div class="stage ' + (picked ? "picked" : "ready") + '">' + questionCard + wheelCard + '</div>' + endBtn;
+  },
+
+  admin(){
+    var d = UI.draft;
+    var nNames = parseNames(d.namesText).length;
+    var qHtml = d.questions.map(function(q, i){
+      return '<div class="qedit">'
+        + '<div class="qedit-head"><b>Scenario ' + (i + 1) + '</b><span class="qedit-actions">'
+        + '<button class="iconbtn" onclick="moveQ(' + i + ',-1)" ' + (i === 0 ? "disabled" : "") + '>↑</button>'
+        + '<button class="iconbtn" onclick="moveQ(' + i + ',1)" ' + (i === d.questions.length - 1 ? "disabled" : "") + '>↓</button>'
+        + '<button class="iconbtn danger" onclick="armedTap(this,\'Confirm?\',function(){delQ(' + i + ')})">Delete</button>'
+        + '</span></div>'
+        + '<label class="field">TITLE (short label, shown on the answers sheet)</label>'
+        + '<input type="text" value="' + esc(q.title) + '" oninput="dQ(' + i + ',\'title\',this.value)">'
+        + '<label class="field">SCENARIO / QUESTION</label>'
+        + '<textarea rows="4" oninput="dQ(' + i + ',\'q\',this.value)">' + esc(q.q) + '</textarea>'
+        + '<label class="field">PICTURE (optional — shown with the scenario, e.g. a photo of the room)</label>'
+        + '<input type="file" id="picfile-' + i + '" accept="image/*" hidden onchange="pickPic(' + i + ',this)">'
+        + '<div class="picedit" id="picedit-' + i + '">' + picEditHtml(i) + '</div>'
+        + '<label class="field">MODEL ANSWER (what you want to hear — hidden until you press Reveal on the question, or at the end)</label>'
+        + '<textarea rows="7" oninput="dQ(' + i + ',\'a\',this.value)">' + esc(q.a) + '</textarea>'
+        + '</div>';
+    }).join("");
+    return storageBanner()
+      + '<div class="card narrow">'
+      + '<div class="kicker">Admin</div><h2>People on the wheel</h2>'
+      + '<p class="muted">One name per line (commas work too) — paste your whole team in.</p>'
+      + '<textarea rows="8" oninput="dNames(this.value)" placeholder="One name per line">' + esc(d.namesText) + '</textarea>'
+      + '<div class="muted" id="nameCount">' + nNames + plural(nNames, " name", " names") + '</div>'
+      + '</div>'
+      + '<div class="card narrow">'
+      + '<h2>Rest rule</h2>'
+      + '<label class="field">AFTER BEING PICKED, A PERSON SITS OUT THE NEXT THIS MANY QUESTIONS</label>'
+      + '<input type="number" min="0" max="20" step="1" value="' + esc(String(d.cooldown)) + '" oninput="dCooldown(this.value)">'
+      + '<p class="muted">0 allows the same person back-to-back. If you have fewer names than the rule can cover, the wheel falls back to whoever has rested longest and tells you.</p>'
+      + '</div>'
+      + '<div class="card narrow">'
+      + '<h2>On screen</h2>'
+      + '<label class="checkrow"><input type="checkbox" ' + (d.showFirst ? "checked" : "") + ' onchange="dShowFirst(this.checked)"> Show each scenario next to the wheel before it is spun</label>'
+      + '<p class="muted">Untick it to keep the scenario hidden until someone is picked. Model answers stay hidden until you press “Reveal model answer” on a question, or reveal them all on the answers page at the end.</p>'
+      + '</div>'
+      + '<div class="card narrow">'
+      + '<h2>Scenario questions (' + d.questions.length + ')</h2>'
+      + '<p class="muted">Tip: finish or export a session before reordering or deleting scenarios, because the saved answers follow the question order.</p>'
+      + '<p class="muted">Pictures: add a photo to any scenario and it appears with the question (click it during the session to enlarge). It is shrunk automatically and saved to the shared database when you press Save.</p>'
+      + qHtml
+      + '<button class="btn" onclick="addQ()">+ Add a scenario</button>'
+      + '<button class="btn btn-ghost" onclick="armedTap(this,\'Replace with the starter 10?\',resetStarter)">Reset to the starter 10</button>'
+      + '<button class="btn btn-ghost" onclick="openQA(\'admin\')">View / print the Q&amp;A sheet (saved version)</button>'
+      + '</div>'
+      + '<div class="savebar narrow">'
+      + '<span class="muted" id="dirtyNote">' + (UI.dirty ? "Unsaved changes" : esc(UI.savedMsg)) + '</span>'
+      + '<button class="btn btn-primary" onclick="saveAdmin()">Save</button>'
+      + '<button class="btn" onclick="backFromAdmin(this)">Back</button>'
+      + '</div>';
+  },
+
+  qa(){
+    var items = CFG.questions.map(function(q, i){
+      return '<div class="qa-item"><div class="qa-q">Q' + (i + 1) + '. ' + (q.title ? esc(q.title) + ' — ' : '') + esc(q.q) + '</div>'
+        + (q.img ? picHtml(q, "qimg-qa") : "")
+        + '<div class="qa-a"><b>Model answer</b>\n' + esc(q.a || "—") + '</div></div>';
+    }).join("");
+    return '<div class="card narrow">'
+      + '<div class="print-header"><h1>Scenario Q&amp;A</h1><p>Questions and model answers · ' + new Date().toLocaleDateString("en-GB") + '</p></div>'
+      + '<div class="kicker">Q&amp;A sheet</div><h2>Questions &amp; model answers</h2>'
+      + (items || '<p class="muted">No questions yet.</p>')
+      + '<div style="margin-top:18px;">'
+      + '<button class="btn btn-primary" onclick="printNow()">Print / save as PDF</button>'
+      + '<button class="btn btn-ghost" onclick="closeQA()">' + (UI.qaFrom === "admin" && UI.draft ? "Back to admin" : "Back to home") + '</button>'
+      + '</div></div>';
+  }
+};
+
+function render(){
+  var app = document.getElementById("app");
+  document.body.setAttribute("data-screen", UI.screen);
+  var fn = SCREENS[UI.screen] || SCREENS.home;
+  app.innerHTML = fn();
+  if(UI.screen === "session" && !sessionIsDone()){ prepareWheel(); }
+  hydratePics();
+  /* Jump to the top when the view really changes (new screen, new question, wheel -> name),
+     but not when only the model answers are revealed or an admin card is added/moved. */
+  var view = UI.screen;
+  if(UI.screen === "session"){
+    view += ":" + SESSION.qIndex + ":" + SESSION.phase;
+  }
+  if(view !== UI.lastView){
+    UI.lastView = view;
+    try{ window.scrollTo(0, 0); }catch(e){}
+  }
+}
+
+var resizeFrame = 0;
+window.addEventListener("resize", function(){
+  if(resizeFrame) return;
+  resizeFrame = requestAnimationFrame(function(){
+    resizeFrame = 0;
+    if(!UI.spinning && document.getElementById("wheel")) drawWheel();
+  });
+});
+
+async function boot(){
+  try{
+    var res = await Promise.all([loadKey(CFG_KEY), loadKey(SESSION_KEY)]);
+    var c = res[0], s = res[1];
+    CFG = (c.value === null || c.value === undefined) ? defaultCfg() : sanitizeCfg(c.value);
+    SESSION = sanitizeSession(s.value);
+    UI.storage = (c.cloud && s.cloud) ? "cloud" : "local";
+    UI.storageWhy = c.cloud ? s.why : c.why;
+  }catch(e){
+    CFG = defaultCfg(); SESSION = newSession();
+    UI.storage = "local"; UI.storageWhy = "unexpected error";
+  }
+  UI.screen = "home";
+  render();
+}
+render();
+var muteBtnEl = document.getElementById("muteBtn");
+if(muteBtnEl){ muteBtnEl.innerHTML = soundOn ? "&#128266;" : "&#128263;"; }
+boot();
+</script>
+</body>
+</html>
